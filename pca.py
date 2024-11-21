@@ -15,8 +15,34 @@ class PCA:
         self.explained_variance_ratio = None
 
     def fit_transform(self, X):
+        # Center the data
+        self.mean_ = np.mean(X, axis=0)
+        X_centered = X - self.mean_
+
+        # Compute the covariance matrix
+        n_samples = X_centered.shape[0]
+        cov_matrix = np.dot(X_centered.T, X_centered) / (n_samples - 1)
+
+        # Compute the eigenvectors and eigenvalues
+        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+
+        # Sort the eigenvectors by decreasing eigenvalues
+        idx = np.argsort(eigenvalues)[::-1]
+        eigenvalues = eigenvalues[idx]
+        eigenvectors = eigenvectors[:, idx]
+
+        self.components_ = eigenvectors[:, :self.n_components]
+        self.explained_variance = eigenvalues[:self.n_components]
+        total_var = eigenvalues.sum()
+        self.explained_variance_ratio = self.explained_variance / total_var
+
+        # Transform the data
+        X_transformed = np.dot(X_centered, self.components_)
+
+        return X_transformed
 
     def inverse_transform(self, X):
+        return np.dot(X, self.components_.T) + self.mean_
 
 
 def download_image(url):
