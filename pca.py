@@ -1,4 +1,5 @@
 from PIL import Image
+import re
 import requests
 from io import BytesIO
 import numpy as np
@@ -93,7 +94,7 @@ def compress_image(img_array, n_components):
 
     explained_variance_ratio = pca.explained_variance_ratio.sum()
 
-    return reconstructed, compression_ratio, explained_variance_ratio
+    return reconstructed, compression_ratio, explained_variance_ratio, compressed_size
 
 
 def evaluate_compression(original, compressed):
@@ -130,19 +131,67 @@ def plot_results(original, reconstructed, n_components, compression_ratio, mse, 
     plt.show()
 
 
+def plot_all_results(original, results, original_size, cols=3):
+    """
+    Plot the original image and all reconstructed images in a grid, with metrics displayed.
+
+    Parameters:
+        original (np.array): The original grayscale image.
+        results (list): List of dictionaries containing reconstruction results and metrics.
+        original_size (int): The size of the original image in bytes.
+        cols (int): Number of columns for the grid.
+    """
+    num_results = len(results)
+    # Include the original image, calculate rows
+    rows = (num_results + 1 + cols - 1) // cols
+
+    plt.figure(figsize=(15, 5 * rows))  # Adjust figure size based on rows
+    # Plot original image
+    plt.subplot(rows, cols, 1)
+    plt.imshow(original, cmap='gray')
+    plt.title(f"Original Image\n Size: {original_size:.2f} bytes")
+    plt.axis('off')
+
+    # Plot reconstructed images
+    for i, result in enumerate(results, start=2):
+        reconstructed = result['reconstructed']
+        n_components = result['n_components']
+        compression_ratio = result['compression_ratio']
+        mse = result['mse']
+        psnr = result['psnr']
+        explained_variance = result['explained_variance']
+        compressed_size = result['compressed_size']/1024 * 1024
+
+        plt.subplot(rows, cols, i)
+        plt.imshow(reconstructed, cmap='gray')
+        plt.title(
+            f"{n_components} Components\n"
+            f"CR: {compression_ratio:.2f}x\n"
+            f"MSE: {mse:.2f}\n"
+            f"PSNR: {psnr:.2f} dB\n"
+            f"EV: {explained_variance:.2%}\n"
+            f"Size: {compressed_size} bytes"
+        )
+        plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
 def compress_with_different_components(image_source, components_list):
     """
     Compress image with different numbers of principal components and compare results.
     """
     # Load image
     original_img = load_image(image_source)
+    original_size = original_img.nbytes
 
     results = []
     for n_components in components_list:
         start_time = time.time()
 
         # Compress image
-        reconstructed, compression_ratio, explained_variance = compress_image(
+        reconstructed, compression_ratio, explained_variance, compressed_size = compress_image(
             original_img, n_components)
 
         # Evaluate compression
@@ -157,12 +206,12 @@ def compress_with_different_components(image_source, components_list):
             'psnr': psnr,
             'explained_variance': explained_variance,
             'compression_time': compression_time,
-            'reconstructed': reconstructed
+            'reconstructed': reconstructed,
+            'compressed_size': compressed_size
         })
 
-        # Plot results
-        plot_results(original_img, reconstructed, n_components,
-                     compression_ratio, mse, psnr, explained_variance)
+    # Plot results
+    plot_all_results(original_img, results, original_size)
 
     return results
 
@@ -170,21 +219,21 @@ def compress_with_different_components(image_source, components_list):
 def compression_results(results):
     print("\n Compression Results Summary:")
     print("-------------------------------")
+    print(f"{'Components':<20}{'Compression Ratio (%)':<25}{'MSE':<10}{
+          'PSNR (dB)':<10}{'Explained Variance (%)':<25}{'Time (s)':<10}")
+    print("-" * 100)
     for result in results:
-        print(f"\n Number of components:    {result['n_components']}")
-        print(f" Compression ratio:       {result['compression_ratio']:.2f}x")
-        print(f" MSE:                     {result['mse']:.2f}")
-        print(f" PSNR:                    {result['psnr']:.2f} dB")
-        print(f" Explained variance:      {result['explained_variance']:.2%}")
-        print(f" Compression time:        {
-              result['compression_time']:.2f} seconds")
-        print("-------------------------------")
+        compression_ratio_percentage = result['compression_ratio'] * 100
+        print(f"{result['n_components']:<20}{compression_ratio_percentage:<25.2f}{result['mse']:<10.2f}{
+              result['psnr']:<10.2f}{result['explained_variance'] * 100:<25.2f}{result['compression_time']:<10.2f}")
+    print("-" * 100)
 
 
 if __name__ == "__main__":
-    image_url = "https://upload.wikimedia.org/wikipedia/commons/5/54/Beaver-Szmurlo.jpg"
-    components = [5, 10, 20, 50, 100, 200]
 
+    image_url = input("Please enter the URL to the image: ")
+
+    components = [5, 10, 20, 50, 100, 200]
     results = compress_with_different_components(image_url, components)
 
     compression_results(results)
