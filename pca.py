@@ -20,11 +20,10 @@ class PCA:
         X_centered = X - self.mean_
 
         # Compute the covariance matrix
-        n_samples = X_centered.shape[0]
-        cov_matrix = np.dot(X_centered.T, X_centered) / (n_samples - 1)
+        cov_matrix = np.cov(X_centered, rowvar=False)
 
         # Compute the eigenvectors and eigenvalues
-        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
 
         # Sort the eigenvectors by decreasing eigenvalues
         idx = np.argsort(eigenvalues)[::-1]
@@ -47,15 +46,26 @@ class PCA:
 
 def download_image(url):
     try:
-        response = requests.get(url)
+        headers = {
+            'User-Agent': 'PCACompression/1.0 )'
+        }
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
+
+        # Verificar o tipo de conteúdo retornado
+        content_type = response.headers.get('Content-Type', '')
+        if 'image' not in content_type:
+            raise Exception(f"Unexpected content type: {content_type}")
+
         return Image.open(BytesIO(response.content))
-    except Exception as e:
+    except requests.RequestException as e:
         raise Exception(f"Error downloading image: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Error processing image: {str(e)}")
 
 
 def load_image(image_source):
-    if isinstance(imag_source, str) and (image_source.startswith("http://") or image_source.startswith("https://")):
+    if isinstance(image_source, str) and image_source.startswith(("http://", "https://")):
         img = download_image(image_source)
     else:
         img = Image.open(image_source)
@@ -125,7 +135,7 @@ def compress_with_different_components(image_source, components_list):
     Compress image with different numbers of principal components and compare results.
     """
     # Load image
-    original_img = load_and_prepare_image(image_source)
+    original_img = load_image(image_source)
 
     results = []
     for n_components in components_list:
@@ -169,3 +179,12 @@ def compression_results(results):
         print(f" Compression time:        {
               result['compression_time']:.2f} seconds")
         print("-------------------------------")
+
+
+if __name__ == "__main__":
+    image_url = "https://upload.wikimedia.org/wikipedia/commons/5/54/Beaver-Szmurlo.jpg"
+    components = [5, 10, 20, 50, 100, 200]
+
+    results = compress_with_different_components(image_url, components)
+
+    compression_results(results)
